@@ -4,5 +4,5 @@
   ___) | (_| (+) | |_| | ||  __/ |   
  |____/ \___\___/ \__,_|\__\___|_|                                      
  Open Source S/W Performance Monitoring  
- Scouter version ${version}: 본 빌드는 Reactor 최신 버전에 대응하기 위해 fork된 버전입니다.
+ Scouter version ${version}: 본 빌드는 Reactor 최신 버전에 대응하기 위해 fork된 버전입니다. 2차 시도
  
