@@ -10,25 +10,19 @@ import java.util.function.Function;
  */
 public class ReactiveSupportUtils {
 
-	public static boolean isSupportReactor34() {
-		try {
-			Class<?> assemblySnapshotClass = Class.forName("reactor.core.publisher.FluxOnAssembly$AssemblySnapshot");
-			assemblySnapshotClass.getDeclaredMethod("isCheckpoint");
+    public static boolean isSupportReactor34() {
+        try {
+            Class<Mono> monoClass = Mono.class;
+            Class<?>[] parameterTypes = new Class<?>[]{Function.class};
+            monoClass.getMethod("contextWrite", parameterTypes);
 
-			Class<Mono> monoClass = Mono.class;
-			Class<?>[] parameterTypes = new Class<?>[]{Function.class};
-			monoClass.getMethod("contextWrite", parameterTypes);
-
-			return true;
-
-		} catch (ClassNotFoundException | NoSuchMethodException e) {
-			e.printStackTrace();
-			Logger.println("R301", e.getMessage());
-			return false;
-		} catch (Exception e) {
-			e.printStackTrace();
-			Logger.println("R302", e.getMessage(), e);
-			return false;
-		}
-	}
+            return true;
+        } catch (NoSuchMethodException e) {
+            Logger.println("R301", e.getMessage());
+            return false;
+        } catch (Exception e) {
+            Logger.println("R302", e.getMessage(), e);
+            return false;
+        }
+    }
 }
