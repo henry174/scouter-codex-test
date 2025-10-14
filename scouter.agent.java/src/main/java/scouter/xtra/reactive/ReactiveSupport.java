@@ -55,6 +55,9 @@ public class ReactiveSupport implements IReactiveSupport {
     private static boolean isReactor34;
 
     public ReactiveSupport() {
+        // Reactor 3.4+ removed Mono.subscriberContext in favor of contextWrite, so we probe
+        // the runtime Mono type once and store whichever API is actually available. Using
+        // reflection keeps the agent compatible with both old and new Reactor releases.
         boolean preferContextWrite = ReactiveSupportUtils.isSupportReactor34();
         try {
             if (preferContextWrite) {
