@@ -20,8 +20,10 @@ import scouter.agent.Logger;
 import scouter.agent.trace.TraceContext;
 
 public class ReactiveSupportFactory {
-	private static final String REACTIVE_SUPPORT = "scouter.xtra.reactive.ReactiveSupport";
-	private static final String REACTIVE_SUPPORT_W_COROUTINE = "scouter.xtra.reactive.ReactiveSupportWithCoroutine";
+        private static final String REACTIVE_SUPPORT = "scouter.xtra.reactive.ReactiveSupport";
+        private static final String REACTIVE_SUPPORT_W_COROUTINE = "scouter.xtra.reactive.ReactiveSupportWithCoroutine";
+        private static final String KOTLIN_COROUTINE_CONTEXT = "kotlin.coroutines.CoroutineContext";
+        private static final String KOTLIN_THREAD_CONTEXT_ELEMENT = "kotlinx.coroutines.ThreadContextElement";
 
 	public static final IReactiveSupport dummy = new IReactiveSupport() {
 		public Object subscriptOnContext(Object mono0, TraceContext traceContext) {
@@ -53,20 +55,38 @@ public class ReactiveSupportFactory {
 				return dummy;
 			}
 			IReactiveSupport reactiveSupport = null;
-			try {
-				Class c = Class.forName(REACTIVE_SUPPORT_W_COROUTINE, true, loader);
-				reactiveSupport = (IReactiveSupport) c.newInstance();
-			} catch (Throwable e) {
-				Logger.println("A133-0", "fail to create reactive support: REACTIVE_SUPPORT_W_COROUTINE", e);
-				Class c = Class.forName(REACTIVE_SUPPORT, true, loader);
-				reactiveSupport = (IReactiveSupport) c.newInstance();
-				Logger.println("success to create reactive support without coroutine support");
-			}
-			return reactiveSupport;
+                        boolean coroutineAvailable = isCoroutineOnClasspath(loader);
+                        if (coroutineAvailable) {
+                                try {
+                                        Class c = Class.forName(REACTIVE_SUPPORT_W_COROUTINE, true, loader);
+                                        reactiveSupport = (IReactiveSupport) c.newInstance();
+                                } catch (Throwable e) {
+                                        Logger.println("A133-0", "fail to create reactive support: REACTIVE_SUPPORT_W_COROUTINE", e);
+                                }
+                        }
+                        if (reactiveSupport == null) {
+                                if (!coroutineAvailable) {
+                                        Logger.println("A133-0", "skip coroutine reactive support (kotlin coroutine classes not found)");
+                                }
+                                Class c = Class.forName(REACTIVE_SUPPORT, true, loader);
+                                reactiveSupport = (IReactiveSupport) c.newInstance();
+                                Logger.println("success to create reactive support without coroutine support");
+                        }
+                        return reactiveSupport;
 
-		} catch (Throwable e) {
-			Logger.println("A133-2", "fail to create", e);
-			return dummy;
-		}
-	}
+                } catch (Throwable e) {
+                        Logger.println("A133-2", "fail to create", e);
+                        return dummy;
+                }
+        }
+
+        private static boolean isCoroutineOnClasspath(ClassLoader loader) {
+                try {
+                        Class.forName(KOTLIN_COROUTINE_CONTEXT, false, loader);
+                        Class.forName(KOTLIN_THREAD_CONTEXT_ELEMENT, false, loader);
+                        return true;
+                } catch (Throwable e) {
+                        return false;
+                }
+        }
 }
