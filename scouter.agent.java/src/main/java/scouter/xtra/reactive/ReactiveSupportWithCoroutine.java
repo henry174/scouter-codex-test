@@ -58,15 +58,36 @@ public class ReactiveSupportWithCoroutine implements IReactiveSupport {
     private static boolean isReactor34;
 
     public ReactiveSupportWithCoroutine() {
-        isReactor34 = ReactiveSupportUtils.isSupportReactor34();
+        boolean preferContextWrite = ReactiveSupportUtils.isSupportReactor34();
         try {
-            if (isReactor34) {
-                subscriberContextMethod = Mono.class.getMethod("contextWrite", Function.class);
-                Class<?> assemblySnapshotClass = Class.forName("reactor.core.publisher.FluxOnAssembly$AssemblySnapshot");
-                isCheckpoint = assemblySnapshotClass.getDeclaredMethod("isCheckpoint");
-                isCheckpoint.setAccessible(true);
+            if (preferContextWrite) {
+                try {
+                    subscriberContextMethod = Mono.class.getMethod("contextWrite", Function.class);
+                    isReactor34 = true;
+                } catch (NoSuchMethodException ex) {
+                    subscriberContextMethod = Mono.class.getMethod("subscriberContext", Function.class);
+                    isReactor34 = false;
+                }
             } else {
-                subscriberContextMethod = Mono.class.getMethod("subscriberContext", Function.class);
+                try {
+                    subscriberContextMethod = Mono.class.getMethod("subscriberContext", Function.class);
+                    isReactor34 = false;
+                } catch (NoSuchMethodException ex) {
+                    subscriberContextMethod = Mono.class.getMethod("contextWrite", Function.class);
+                    isReactor34 = true;
+                }
+            }
+
+            if (isReactor34) {
+                try {
+                    Class<?> assemblySnapshotClass = Class.forName("reactor.core.publisher.FluxOnAssembly$AssemblySnapshot");
+                    isCheckpoint = assemblySnapshotClass.getDeclaredMethod("isCheckpoint");
+                    isCheckpoint.setAccessible(true);
+                } catch (Exception ex) {
+                    Logger.println("R303", ex.getMessage(), ex);
+                    isCheckpoint = null;
+                    isReactor34 = false;
+                }
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
