@@ -33,6 +33,7 @@ public class HttpReactiveServiceASM implements IASM, Opcodes {
 	public HttpReactiveServiceASM() {
 		handlers.add("org/springframework/web/reactive/DispatcherHandler");
 		handlers.add("org/springframework/web/server/handler/FilteringWebHandler");
+		handlers.add("org/springframework/web/server/handler/DefaultWebFilterChain");
 //		handlersRes.add("org/springframework/http/server/reactive/ReactorServerHttpResponse");
 	}
 
@@ -60,6 +61,8 @@ class HttpReactiveServiceCV extends ClassVisitor implements Opcodes {
 	private static String handler2 = "handle";
 	private static String handler_sig2 = "(Lorg/springframework/web/server/ServerWebExchange;)Lreactor/core/publisher/Mono;";
 
+	private static String handler3 = "filter";
+
 	private static String loading = "<init>";
 	private static String loading_class = "org/springframework/web/reactive/DispatcherHandler";
 
@@ -76,7 +79,8 @@ class HttpReactiveServiceCV extends ClassVisitor implements Opcodes {
 			return mv;
 		}
 
-		if (desc.startsWith(handler_sig2) && handler2.equals(name) || desc.startsWith(handler_sig) && handler.equals(name)) {
+		boolean isServerExchangeMono = desc.startsWith(handler_sig2) && (handler2.equals(name) || handler3.equals(name));
+		if (isServerExchangeMono || desc.startsWith(handler_sig) && handler.equals(name)) {
 			Logger.println("A103", "HTTP-REACTIVE " + className);
 			return new HttpReactiveServiceMV(access, desc, mv);
 
