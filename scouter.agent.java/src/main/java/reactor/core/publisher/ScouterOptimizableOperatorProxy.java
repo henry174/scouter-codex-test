@@ -57,13 +57,17 @@ public class ScouterOptimizableOperatorProxy {
                 }
                 if (closeAssembly instanceof MonoOnAssembly) {
                     FluxOnAssembly.AssemblySnapshot snapshot = ((MonoOnAssembly) closeAssembly).stacktrace;
-                    boolean cp = isReactor34 ? (Boolean) isCheckpoint.invoke(snapshot) : snapshot.checkpointed;
+                    boolean cp = snapshot != null && (isReactor34 && isCheckpoint != null
+                            ? (Boolean) isCheckpoint.invoke(snapshot)
+                            : snapshot.checkpointed);
                     if (snapshot != null && cp) {
                         return new Tuple.StringLongPair(snapshot.cached, snapshot.hashCode());
                     }
                 } else if (closeAssembly instanceof FluxOnAssembly) {
                     FluxOnAssembly.AssemblySnapshot snapshot = ((FluxOnAssembly) closeAssembly).snapshotStack;
-                    boolean cp = isReactor34 ? (Boolean) isCheckpoint.invoke(snapshot) : snapshot.checkpointed;
+                    boolean cp = snapshot != null && (isReactor34 && isCheckpoint != null
+                            ? (Boolean) isCheckpoint.invoke(snapshot)
+                            : snapshot.checkpointed);
                     if (snapshot != null && cp) {
                         return new Tuple.StringLongPair(snapshot.cached, snapshot.hashCode());
                     }

@@ -58,15 +58,39 @@ public class ReactiveSupportWithCoroutine implements IReactiveSupport {
     private static boolean isReactor34;
 
     public ReactiveSupportWithCoroutine() {
-        isReactor34 = ReactiveSupportUtils.isSupportReactor34();
+        // Reactor 3.4+ removed Mono.subscriberContext in favor of contextWrite, so we probe
+        // the runtime Mono type once and store whichever API is actually available. Using
+        // reflection keeps the agent compatible with both old and new Reactor releases.
+        boolean preferContextWrite = ReactiveSupportUtils.isSupportReactor34();
         try {
-            if (isReactor34) {
-                subscriberContextMethod = Mono.class.getMethod("contextWrite", Function.class);
-                Class<?> assemblySnapshotClass = Class.forName("reactor.core.publisher.FluxOnAssembly$AssemblySnapshot");
-                isCheckpoint = assemblySnapshotClass.getDeclaredMethod("isCheckpoint");
-                isCheckpoint.setAccessible(true);
+            if (preferContextWrite) {
+                try {
+                    subscriberContextMethod = Mono.class.getMethod("contextWrite", Function.class);
+                    isReactor34 = true;
+                } catch (NoSuchMethodException ex) {
+                    subscriberContextMethod = Mono.class.getMethod("subscriberContext", Function.class);
+                    isReactor34 = false;
+                }
             } else {
-                subscriberContextMethod = Mono.class.getMethod("subscriberContext", Function.class);
+                try {
+                    subscriberContextMethod = Mono.class.getMethod("subscriberContext", Function.class);
+                    isReactor34 = false;
+                } catch (NoSuchMethodException ex) {
+                    subscriberContextMethod = Mono.class.getMethod("contextWrite", Function.class);
+                    isReactor34 = true;
+                }
+            }
+
+            if (isReactor34) {
+                try {
+                    Class<?> assemblySnapshotClass = Class.forName("reactor.core.publisher.FluxOnAssembly$AssemblySnapshot");
+                    isCheckpoint = assemblySnapshotClass.getDeclaredMethod("isCheckpoint");
+                    isCheckpoint.setAccessible(true);
+                } catch (Exception ex) {
+                    Logger.println("R303", ex.getMessage(), ex);
+                    isCheckpoint = null;
+                    isReactor34 = false;
+                }
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -82,10 +106,10 @@ public class ReactiveSupportWithCoroutine implements IReactiveSupport {
             Mono<?> mono = (Mono<?>) mono0;
             traceContext.isReactiveTxidMarked = true;
             Mono<?> monoChain;
-            Function<Context, Context> func = new Function<Context, Context>() {
+            Function<Object, Object> func = new Function<Object, Object>() {
                 @Override
-                public Context apply(Context context) {
-                    return context.put(TraceContext.class, traceContext);
+                public Object apply(Object context) {
+                    return ReactiveSupportUtils.putTraceContext(context, traceContext);
                 }
             };
 
@@ -132,7 +156,7 @@ public class ReactiveSupportWithCoroutine implements IReactiveSupport {
                         if (scannable instanceof Fuseable.ScalarCallable) {
                             return subscriber;
                         }
-                        Context context = subscriber.currentContext();
+                        Object context = subscriber.currentContext();
                         TraceContext traceContext = getTraceContext(scannable, context);
 
                         if (traceContext != null) {
@@ -151,11 +175,11 @@ public class ReactiveSupportWithCoroutine implements IReactiveSupport {
         }
     }
 
-    private TraceContext getTraceContext(Scannable scannable, Context currentContext) {
+    private TraceContext getTraceContext(Scannable scannable, Object currentContext) {
         if (scannable == null || currentContext == null) {
             return null;
         }
-        return currentContext.getOrDefault(TraceContext.class, null);
+        return ReactiveSupportUtils.getTraceContext(currentContext);
     }
 
     @Override
@@ -197,7 +221,8 @@ public class ReactiveSupportWithCoroutine implements IReactiveSupport {
         public TxidLifter(CoreSubscriber<T> coreSubscriber, Scannable scannable, Publisher publisher,
                           TraceContext traceContext) {
             this.coreSubscriber = coreSubscriber;
-            Context context = coreSubscriber.currentContext();
+            Object rawContext = coreSubscriber.currentContext();
+            Context context = ReactiveSupportUtils.toWritableContext(rawContext);
             this.scannable = scannable;
             this.publisher = publisher;
             this.traceContext = traceContext;
@@ -207,7 +232,7 @@ public class ReactiveSupportWithCoroutine implements IReactiveSupport {
                     .nameOnCheckpoint(scannable, configure.profile_reactor_checkpoint_search_depth, isReactor34, isCheckpoint);
             checkpointDesc = checkpointPair.aString;
 
-            Integer parentDepth = context.getOrDefault(SubscribeDepth.class, 0);
+            Integer parentDepth = ReactiveSupportUtils.getOrDefault(rawContext, SubscribeDepth.class, 0);
             depth = (!"".equals(checkpointDesc)) ? parentDepth + 1 : parentDepth;
             this.ctx = context.put(SubscribeDepth.class, depth);
 
